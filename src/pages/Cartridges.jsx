@@ -91,7 +91,7 @@ export default function Cartridges() {
                       const v = c.stock[b.id] || 0; const low = v < c.min;
                       return (
                         <td key={b.id} style={{ textAlign: "center" }}>
-                          <span className="v mono-cell" style={{ color: v === 0 ? "var(--crit)" : low ? "var(--warn)" : "#fff", fontSize: 15, fontWeight: 500 }}>{v}</span>
+                          <span className="v mono-cell" style={{ color: v === 0 ? "var(--crit)" : low ? "var(--warn)" : "var(--text)", fontSize: 15, fontWeight: 500 }}>{v}</span>
                         </td>
                       );
                     })}

@@ -64,7 +64,7 @@ export default function Warehouse() {
                     <td>{i.name}</td>
                     <td className="mono-cell">{i.cat}</td>
                     <td className="muted">{branchName(i.branchId)}</td>
-                    <td style={{ textAlign: "center" }}><span className="num" style={{ color: i.qty === 0 ? "var(--crit)" : "#fff" }}>{i.qty}</span> <span className="muted mono-cell">{i.unit}</span></td>
+                    <td style={{ textAlign: "center" }}><span className="num" style={{ color: i.qty === 0 ? "var(--crit)" : "var(--text)" }}>{i.qty}</span> <span className="muted mono-cell">{i.unit}</span></td>
                     <td style={{ textAlign: "right" }}>
                       <div className="qtybox" style={{ justifyContent: "flex-end" }}>
                         <button className="pill" onClick={() => adjustWarehouseItem(i.id, -1)}>−</button>
