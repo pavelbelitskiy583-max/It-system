@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { parse, serialize } from "cookie";
+import { createHash } from "node:crypto";
 
 const COOKIE_NAME = "echoit_session";
 const JWT_SECRET = process.env.JWT_SECRET || "echoit-dev-insecure-secret-change-me";
@@ -23,6 +24,13 @@ export function genPassword(len = 10) {
   let out = "";
   for (let i = 0; i < len; i++) out += chars[Math.floor(Math.random() * chars.length)];
   return out;
+}
+
+export function genVerificationCode() {
+  return String(Math.floor(100000 + Math.random() * 900000)); // 6 цифр
+}
+export function hashCode(code) {
+  return createHash("sha256").update(String(code).trim()).digest("hex");
 }
 
 export async function hashPassword(pw) {

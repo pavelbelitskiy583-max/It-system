@@ -53,11 +53,19 @@ export function AuthProvider({ children }) {
     })();
   }, []); // eslint-disable-line
 
-  const registerOrg = async ({ orgName, adminName, login, password }) => {
-    const { user: u, org: o } = await api.post("/auth/register", { orgName, adminName, login, password });
+  const requestRegister = async ({ orgName, adminName, login, email, password }) => {
+    return api.post("/auth/register", { orgName, adminName, login, email, password }); // { pending: true, email }
+  };
+
+  const confirmRegister = async ({ email, code }) => {
+    const { user: u, org: o } = await api.post("/auth/verify-registration", { email, code });
     setUser(u); setOrg(o);
     await refreshEmployees();
     return o;
+  };
+
+  const resendCode = async (email) => {
+    return api.post("/auth/resend-code", { email });
   };
 
   const login = async ({ login, password }) => {
@@ -109,7 +117,7 @@ export function AuthProvider({ children }) {
 
   const value = {
     ready, org, user, isAdmin: user?.role === "admin",
-    registerOrg, login, logout,
+    requestRegister, confirmRegister, resendCode, login, logout,
     createEmployee, updateEmployee, removeEmployee, regeneratePassword, listEmployees,
     changeOwnPassword, can,
   };

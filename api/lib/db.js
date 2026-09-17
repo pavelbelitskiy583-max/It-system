@@ -43,6 +43,19 @@ export async function ensureSchema() {
       must_change_password BOOLEAN NOT NULL DEFAULT true,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )`;
+    // Колонка добавлена позже исходной схемы — ADD COLUMN IF NOT EXISTS безопасен
+    // для уже существующей в проде базы данных (ничего не перезаписывает).
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT`;
+
+    await sql`CREATE TABLE IF NOT EXISTS pending_verifications (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL,
+      code_hash TEXT NOT NULL,
+      payload JSONB NOT NULL,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      expires_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )`;
 
     await sql`CREATE TABLE IF NOT EXISTS branches (
       id TEXT PRIMARY KEY,
