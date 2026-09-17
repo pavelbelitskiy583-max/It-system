@@ -3,29 +3,12 @@ import { Link, useNavigate } from "react-router-dom";
 import { useTypewriter } from "../hooks/useTypewriter";
 
 const VIDEO_URL = "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260530_042513_df96a13b-6155-4f6e-8b93-c9dee66fba08.mp4";
-const CONTACT_EMAIL = "hello@echoit.app";
 const SENSITIVITY = 0.8;
-
-const NAV_LINKS = [
-  { href: "#modules", label: "Модули" },
-  { href: "#how", label: "Как это работает" },
-  { href: "#contact", label: "Контакты" },
-];
-
-function CopyIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect x="9" y="9" width="12" height="12" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M5 15V4a1 1 0 0 1 1-1h11" stroke="currentColor" strokeWidth="1.6" />
-    </svg>
-  );
-}
 
 export default function Landing() {
   const videoRef = useRef(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [pillsVisible, setPillsVisible] = useState(false);
-  const [copied, setCopied] = useState(false);
   const navigate = useNavigate();
 
   const { displayed, done } = useTypewriter(
@@ -113,15 +96,11 @@ export default function Landing() {
     return () => { document.body.style.overflow = ""; };
   }, [menuOpen]);
 
-  const copyEmail = async () => {
-    try { await navigator.clipboard.writeText(CONTACT_EMAIL); } catch { /* noop */ }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1600);
-  };
-
   return (
     <div className="mf-page">
-      <video ref={videoRef} className="mf-video" muted playsInline preload="auto">
+      {/* preload="metadata" — грузим только длительность/размеры, а не весь файл,
+          первый кадр появляется намного быстрее */}
+      <video ref={videoRef} className="mf-video" muted playsInline preload="metadata">
         <source src={VIDEO_URL} type="video/mp4" />
       </video>
 
@@ -130,15 +109,6 @@ export default function Landing() {
         <div className="mf-logo">
           <span className="mf-logo__text" style={{ fontFamily: "var(--font-heading)" }}>ECHOIT</span>
           <span className="mf-logo__star">✳︎</span>
-        </div>
-
-        <div className="mf-nav__links">
-          {NAV_LINKS.map((l, i) => (
-            <React.Fragment key={l.href}>
-              <a href={l.href} onClick={(e) => { e.preventDefault(); document.querySelector(l.href)?.scrollIntoView({ behavior: "smooth" }); }}>{l.label}</a>
-              {i < NAV_LINKS.length - 1 && <span>,&nbsp;</span>}
-            </React.Fragment>
-          ))}
         </div>
 
         <Link className="mf-nav__cta" to="/auth?mode=login">Войти</Link>
@@ -150,9 +120,7 @@ export default function Landing() {
 
       {/* ---------- MOBILE OVERLAY ---------- */}
       <div className="mf-overlay" style={{ opacity: menuOpen ? 1 : 0, pointerEvents: menuOpen ? "auto" : "none" }} role="dialog" aria-modal="true" aria-hidden={!menuOpen}>
-        {NAV_LINKS.map((l) => (
-          <a key={l.href} href={l.href} onClick={(e) => { e.preventDefault(); setMenuOpen(false); document.querySelector(l.href)?.scrollIntoView({ behavior: "smooth" }); }}>{l.label}</a>
-        ))}
+        <Link className="cta" to="/auth?mode=register" onClick={() => setMenuOpen(false)}>Создать организацию</Link>
         <Link className="cta" to="/auth?mode=login" onClick={() => setMenuOpen(false)}>Войти</Link>
       </div>
 
@@ -170,14 +138,10 @@ export default function Landing() {
           </p>
 
           <div className={"mf-pills" + (pillsVisible ? " show" : "")}>
-            <Link className="mf-pill" to="/auth?mode=register">Создать организацию</Link>
+            <Link className="mf-pill mf-pill--primary" to="/auth?mode=register">Создать организацию</Link>
             <Link className="mf-pill" to="/auth?mode=login">Войти в систему</Link>
             <a className="mf-pill" href="#modules" onClick={(e) => { e.preventDefault(); document.querySelector("#modules")?.scrollIntoView({ behavior: "smooth" }); }}>Смотреть модули</a>
             <a className="mf-pill" href="#how" onClick={(e) => { e.preventDefault(); document.querySelector("#how")?.scrollIntoView({ behavior: "smooth" }); }}>Как это работает</a>
-            <button className="mf-pill mf-pill--outline" onClick={copyEmail}>
-              <u>{copied ? "Скопировано" : `Написать нам: ${CONTACT_EMAIL}`}</u>
-              <CopyIcon />
-            </button>
           </div>
         </div>
       </section>
