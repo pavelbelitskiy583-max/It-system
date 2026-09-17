@@ -1,7 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
-import { lsGet, lsSet } from "../lib/storage";
-import { hashPassword, verifyPassword } from "../lib/crypto";
-import { makeId, genPassword } from "../lib/id";
+import { api } from "../lib/api";
 
 const AuthCtx = createContext(null);
 
@@ -27,146 +25,80 @@ function emptyPermissions() {
 }
 
 export function AuthProvider({ children }) {
-  const [session, setSession] = useState(() => lsGet("session"));
   const [org, setOrg] = useState(null);
   const [user, setUser] = useState(null);
+  const [employees, setEmployees] = useState([]);
   const [ready, setReady] = useState(false);
 
-  const loadSession = useCallback((s) => {
-    if (!s) { setOrg(null); setUser(null); return; }
-    const o = lsGet(`org:${s.orgId}`);
-    const users = lsGet(`users:${s.orgId}`, []);
-    const u = users.find((x) => x.id === s.userId);
-    setOrg(o || null);
-    setUser(u || null);
+  const refreshEmployees = useCallback(async () => {
+    try {
+      const list = await api.get("/employees");
+      setEmployees(list);
+    } catch {
+      setEmployees([]);
+    }
   }, []);
 
   useEffect(() => {
-    loadSession(session);
-    setReady(true);
+    (async () => {
+      try {
+        const { user: u, org: o } = await api.get("/auth/me");
+        setUser(u); setOrg(o);
+        await refreshEmployees();
+      } catch {
+        setUser(null); setOrg(null);
+      } finally {
+        setReady(true);
+      }
+    })();
   }, []); // eslint-disable-line
 
-  const persistSession = (s) => {
-    setSession(s);
-    if (s) lsSet("session", s); else lsSet("session", null);
-    loadSession(s);
-  };
-
-  /* ---------- регистрация организации + админа ---------- */
   const registerOrg = async ({ orgName, adminName, login, password }) => {
-    const logins = lsGet("logins", {});
-    const key = login.trim().toLowerCase();
-    if (logins[key]) throw new Error("Такой логин уже занят");
-
-    const orgId = makeId("org");
-    const adminId = makeId("usr");
-    const { hash, salt } = await hashPassword(password);
-
-    const orgRecord = { id: orgId, name: orgName.trim(), createdAt: new Date().toISOString(), adminId };
-    const adminUser = {
-      id: adminId,
-      login: login.trim(),
-      name: adminName.trim(),
-      role: "admin",
-      permissions: fullPermissions(),
-      branchId: null,
-      passHash: hash,
-      passSalt: salt,
-      mustChangePassword: false,
-      createdAt: new Date().toISOString(),
-    };
-
-    lsSet(`org:${orgId}`, orgRecord);
-    lsSet(`users:${orgId}`, [adminUser]);
-    lsSet(`data:${orgId}`, defaultOrgData());
-
-    const orgs = lsGet("orgs", []);
-    lsSet("orgs", [...orgs, { id: orgId, name: orgRecord.name }]);
-
-    logins[key] = { orgId, userId: adminId };
-    lsSet("logins", logins);
-
-    persistSession({ orgId, userId: adminId });
-    return orgRecord;
+    const { user: u, org: o } = await api.post("/auth/register", { orgName, adminName, login, password });
+    setUser(u); setOrg(o);
+    await refreshEmployees();
+    return o;
   };
 
-  /* ---------- вход ---------- */
   const login = async ({ login, password }) => {
-    const logins = lsGet("logins", {});
-    const key = login.trim().toLowerCase();
-    const entry = logins[key];
-    if (!entry) throw new Error("Пользователь с таким логином не найден");
-    const users = lsGet(`users:${entry.orgId}`, []);
-    const u = users.find((x) => x.id === entry.userId);
-    if (!u) throw new Error("Учётная запись не найдена");
-    const ok = await verifyPassword(password, u.passHash, u.passSalt);
-    if (!ok) throw new Error("Неверный пароль");
-    persistSession({ orgId: entry.orgId, userId: entry.userId });
+    const { user: u, org: o } = await api.post("/auth/login", { login, password });
+    setUser(u); setOrg(o);
+    await refreshEmployees();
     return u;
   };
 
-  const logout = () => persistSession(null);
-
-  /* ---------- сотрудники (доступно только админу) ---------- */
-  const createEmployee = async ({ name, login, role = "staff", branchId = null, permissions }) => {
-    if (!org) throw new Error("Нет активной организации");
-    const logins = lsGet("logins", {});
-    const key = login.trim().toLowerCase();
-    if (logins[key]) throw new Error("Такой логин уже занят");
-
-    const password = genPassword(10);
-    const { hash, salt } = await hashPassword(password);
-    const userId = makeId("usr");
-    const newUser = {
-      id: userId,
-      login: login.trim(),
-      name: name.trim(),
-      role,
-      permissions: permissions || emptyPermissions(),
-      branchId,
-      passHash: hash,
-      passSalt: salt,
-      mustChangePassword: true,
-      createdAt: new Date().toISOString(),
-    };
-    const users = lsGet(`users:${org.id}`, []);
-    lsSet(`users:${org.id}`, [...users, newUser]);
-    logins[key] = { orgId: org.id, userId };
-    lsSet("logins", logins);
-    return { user: newUser, password };
+  const logout = async () => {
+    try { await api.post("/auth/logout"); } catch { /* ignore */ }
+    setUser(null); setOrg(null); setEmployees([]);
   };
 
-  const updateEmployee = (userId, patch) => {
-    const users = lsGet(`users:${org.id}`, []);
-    const next = users.map((u) => (u.id === userId ? { ...u, ...patch } : u));
-    lsSet(`users:${org.id}`, next);
-    if (userId === user?.id) setUser((u) => ({ ...u, ...patch }));
-    return next;
+  const createEmployee = async ({ name, login, branchId = null, permissions }) => {
+    const res = await api.post("/employees", { name, login, branchId, permissions: permissions || emptyPermissions() });
+    await refreshEmployees();
+    return res; // { user, password }
+  };
+
+  const updateEmployee = async (userId, patch) => {
+    await api.patch(`/employees/${userId}`, patch);
+    await refreshEmployees();
   };
 
   const regeneratePassword = async (userId) => {
-    const password = genPassword(10);
-    const { hash, salt } = await hashPassword(password);
-    updateEmployee(userId, { passHash: hash, passSalt: salt, mustChangePassword: true });
+    const { password } = await api.post(`/employees/${userId}/reset-password`);
+    await refreshEmployees();
     return password;
   };
 
-  const removeEmployee = (userId) => {
-    const users = lsGet(`users:${org.id}`, []);
-    const target = users.find((u) => u.id === userId);
-    lsSet(`users:${org.id}`, users.filter((u) => u.id !== userId));
-    if (target) {
-      const logins = lsGet("logins", {});
-      delete logins[target.login.trim().toLowerCase()];
-      lsSet("logins", logins);
-    }
+  const removeEmployee = async (userId) => {
+    await api.del(`/employees/${userId}`);
+    await refreshEmployees();
   };
 
-  const listEmployees = () => (org ? lsGet(`users:${org.id}`, []) : []);
+  const listEmployees = () => employees;
 
   const changeOwnPassword = async (newPassword) => {
-    const { hash, salt } = await hashPassword(newPassword);
-    updateEmployee(user.id, { passHash: hash, passSalt: salt, mustChangePassword: false });
+    await api.post("/auth/change-password", { newPassword });
+    setUser((u) => ({ ...u, mustChangePassword: false }));
   };
 
   const can = (moduleId) => {
@@ -192,18 +124,3 @@ export function useAuth() {
 }
 
 export { fullPermissions, emptyPermissions };
-
-function defaultOrgData() {
-  return {
-    branches: [],
-    warehouse: [],
-    cartridges: [],
-    equipment: [],
-    tasks: [],
-    channels: [
-      { id: "general", name: "# общий", desc: "Все сотрудники", branchId: null },
-    ],
-    messages: { general: [] },
-    vault: null, // инициализируется при первом открытии раздела
-  };
-}

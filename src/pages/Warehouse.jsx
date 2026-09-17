@@ -19,12 +19,16 @@ export default function Warehouse() {
     (br === "all" || i.branchId === br) &&
     (i.name.toLowerCase().includes(q.toLowerCase()) || i.cat.toLowerCase().includes(q.toLowerCase())));
 
-  const add = () => {
+  const add = async () => {
     if (!nf.name.trim() || nf.qty === "" || !nf.branchId) return showToast("Заполните все поля позиции");
-    addWarehouseItem({ name: nf.name.trim(), cat: nf.cat, qty: parseInt(nf.qty) || 0, unit: "шт", branchId: nf.branchId });
-    setNf({ name: "", cat: CATS[0], qty: "", branchId: branches[0]?.id || "" });
-    setAdding(false);
-    showToast("Позиция добавлена на склад");
+    try {
+      await addWarehouseItem({ name: nf.name.trim(), cat: nf.cat, qty: parseInt(nf.qty) || 0, unit: "шт", branchId: nf.branchId });
+      setNf({ name: "", cat: CATS[0], qty: "", branchId: branches[0]?.id || "" });
+      setAdding(false);
+      showToast("Позиция добавлена на склад");
+    } catch (e) {
+      showToast(e.message);
+    }
   };
 
   return (

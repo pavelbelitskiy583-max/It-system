@@ -1,128 +1,69 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
-import { lsGet, lsSet } from "../lib/storage";
-import { makeId } from "../lib/id";
+import { api } from "../lib/api";
 import { useAuth } from "./AuthContext";
 import { newVaultSalt, makeVaultCanary, vaultEncrypt, vaultDecrypt, vaultCanaryCheck } from "../lib/crypto";
 
 const DataCtx = createContext(null);
 
 export function DataProvider({ children }) {
-  const { org } = useAuth();
+  const { org, user, ready } = useAuth();
   const [data, setData] = useState(null);
 
+  const refresh = useCallback(async () => {
+    if (!org || !user) { setData(null); return; }
+    const state = await api.get("/state");
+    setData(state);
+  }, [org?.id, user?.id]); // eslint-disable-line
+
   useEffect(() => {
-    if (!org) { setData(null); return; }
-    setData(lsGet(`data:${org.id}`));
-  }, [org?.id]); // eslint-disable-line
-
-  const save = useCallback((updater) => {
-    setData((prev) => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
-      if (org) lsSet(`data:${org.id}`, next);
-      return next;
-    });
-  }, [org]);
-
-  /* ================= ФИЛИАЛЫ / ЭТАЖИ / КАБИНЕТЫ ================= */
-  const addBranch = (name, city) => save((d) => ({
-    ...d, branches: [...d.branches, { id: makeId("br"), name: name.trim(), city: city?.trim() || "", floors: [] }],
-  }));
-  const removeBranch = (branchId) => save((d) => ({ ...d, branches: d.branches.filter((b) => b.id !== branchId) }));
-  const addFloor = (branchId, name) => save((d) => ({
-    ...d,
-    branches: d.branches.map((b) => b.id === branchId
-      ? { ...b, floors: [...b.floors, { id: makeId("fl"), name: name.trim(), rooms: [] }] }
-      : b),
-  }));
-  const removeFloor = (branchId, floorId) => save((d) => ({
-    ...d, branches: d.branches.map((b) => b.id === branchId ? { ...b, floors: b.floors.filter((f) => f.id !== floorId) } : b),
-  }));
-  const addRoom = (branchId, floorId, name) => save((d) => ({
-    ...d,
-    branches: d.branches.map((b) => b.id !== branchId ? b : {
-      ...b,
-      floors: b.floors.map((f) => f.id === floorId ? { ...f, rooms: [...f.rooms, { id: makeId("rm"), name: name.trim() }] } : f),
-    }),
-  }));
-  const removeRoom = (branchId, floorId, roomId) => save((d) => ({
-    ...d,
-    branches: d.branches.map((b) => b.id !== branchId ? b : {
-      ...b,
-      floors: b.floors.map((f) => f.id !== floorId ? f : { ...f, rooms: f.rooms.filter((r) => r.id !== roomId) }),
-    }),
-  }));
+    if (!ready) return;
+    if (org && user) refresh();
+    else setData(null);
+  }, [ready, org?.id, user?.id]); // eslint-disable-line
 
   const branchName = (id) => data?.branches.find((b) => b.id === id)?.name || "—";
 
+  /* ================= ФИЛИАЛЫ / ЭТАЖИ / КАБИНЕТЫ ================= */
+  const addBranch = async (name, city) => { await api.post("/branches", { name, city }); await refresh(); };
+  const removeBranch = async (branchId) => { await api.del(`/branches/${branchId}`); await refresh(); };
+  const addFloor = async (branchId, name) => { await api.post(`/branches/${branchId}/floors`, { name }); await refresh(); };
+  const removeFloor = async (branchId, floorId) => { await api.del(`/floors/${floorId}`); await refresh(); };
+  const addRoom = async (branchId, floorId, name) => { await api.post(`/floors/${floorId}/rooms`, { name }); await refresh(); };
+  const removeRoom = async (branchId, floorId, roomId) => { await api.del(`/rooms/${roomId}`); await refresh(); };
+
   /* ================= СКЛАД IT ================= */
-  const addWarehouseItem = (item) => save((d) => ({ ...d, warehouse: [{ id: makeId("wh"), ...item }, ...d.warehouse] }));
-  const adjustWarehouseItem = (id, delta) => save((d) => ({
-    ...d, warehouse: d.warehouse.map((w) => w.id === id ? { ...w, qty: Math.max(0, w.qty + delta) } : w),
-  }));
-  const removeWarehouseItem = (id) => save((d) => ({ ...d, warehouse: d.warehouse.filter((w) => w.id !== id) }));
+  const addWarehouseItem = async (item) => { await api.post("/warehouse", item); await refresh(); };
+  const adjustWarehouseItem = async (id, delta) => { await api.patch(`/warehouse/${id}`, { delta }); await refresh(); };
+  const removeWarehouseItem = async (id) => { await api.del(`/warehouse/${id}`); await refresh(); };
 
   /* ================= КАРТРИДЖИ + ИСТОРИЯ ================= */
-  const addCartridgeModel = (item) => save((d) => ({
-    ...d, cartridges: [{ id: makeId("ct"), stock: {}, history: [], ...item }, ...d.cartridges],
-  }));
-  const removeCartridgeModel = (id) => save((d) => ({ ...d, cartridges: d.cartridges.filter((c) => c.id !== id) }));
-
-  const cartridgeEvent = (cartId, { type, branchId, qty, note, author }) => save((d) => ({
-    ...d,
-    cartridges: d.cartridges.map((c) => {
-      if (c.id !== cartId) return c;
-      const stock = { ...c.stock };
-      const cur = stock[branchId] || 0;
-      if (type === "in") stock[branchId] = cur + qty;
-      if (type === "sent") stock[branchId] = Math.max(0, cur - qty); // отправлено на заправку — уходит с остатка
-      // "returned" не меняет остаток сразу — ждём подтверждения (confirmed=false)
-      const entry = {
-        id: makeId("ev"), type, branchId, qty, note: note || "",
-        date: new Date().toISOString(), author: author || "—",
-        confirmed: type === "returned" ? false : true,
-      };
-      return { ...c, stock, history: [entry, ...c.history] };
-    }),
-  }));
-
-  const confirmReturn = (cartId, eventId) => save((d) => ({
-    ...d,
-    cartridges: d.cartridges.map((c) => {
-      if (c.id !== cartId) return c;
-      const ev = c.history.find((h) => h.id === eventId);
-      if (!ev || ev.confirmed) return c;
-      const stock = { ...c.stock };
-      stock[ev.branchId] = (stock[ev.branchId] || 0) + ev.qty;
-      return {
-        ...c, stock,
-        history: c.history.map((h) => h.id === eventId ? { ...h, confirmed: true } : h),
-      };
-    }),
-  }));
+  const addCartridgeModel = async (item) => { await api.post("/cartridges", item); await refresh(); };
+  const removeCartridgeModel = async (id) => { await api.del(`/cartridges/${id}`); await refresh(); };
+  const cartridgeEvent = async (cartId, { type, branchId, qty, note }) => {
+    await api.post(`/cartridges/${cartId}/events`, { type, branchId, qty, note });
+    await refresh();
+  };
+  const confirmReturn = async (cartId, eventId) => {
+    await api.post(`/cartridges/${cartId}/events/${eventId}/confirm`);
+    await refresh();
+  };
 
   /* ================= ОБОРУДОВАНИЕ ================= */
-  const addEquipment = (item) => save((d) => ({ ...d, equipment: [{ id: makeId("eq"), status: "work", ...item }, ...d.equipment] }));
-  const updateEquipment = (id, patch) => save((d) => ({ ...d, equipment: d.equipment.map((e) => e.id === id ? { ...e, ...patch } : e) }));
-  const removeEquipment = (id) => save((d) => ({ ...d, equipment: d.equipment.filter((e) => e.id !== id) }));
+  const addEquipment = async (item) => { await api.post("/equipment", item); await refresh(); };
+  const updateEquipment = async (id, patch) => { await api.patch(`/equipment/${id}`, patch); await refresh(); };
+  const removeEquipment = async (id) => { await api.del(`/equipment/${id}`); await refresh(); };
 
   /* ================= ЗАДАЧИ ================= */
-  const addTask = (task) => save((d) => ({ ...d, tasks: [{ id: makeId("tk"), status: "new", ...task }, ...d.tasks] }));
-  const updateTask = (id, patch) => save((d) => ({ ...d, tasks: d.tasks.map((t) => t.id === id ? { ...t, ...patch } : t) }));
-  const removeTask = (id) => save((d) => ({ ...d, tasks: d.tasks.filter((t) => t.id !== id) }));
+  const addTask = async (task) => { await api.post("/tasks", task); await refresh(); };
+  const updateTask = async (id, patch) => { await api.patch(`/tasks/${id}`, patch); await refresh(); };
+  const removeTask = async (id) => { await api.del(`/tasks/${id}`); await refresh(); };
 
   /* ================= МЕССЕНДЖЕР ================= */
-  const addChannel = (name, desc, branchId = null) => save((d) => {
-    const id = makeId("ch");
-    return {
-      ...d,
-      channels: [...d.channels, { id, name: name.startsWith("#") ? name : `# ${name}`, desc, branchId }],
-      messages: { ...d.messages, [id]: [] },
-    };
-  });
-  const sendMessage = (channelId, message) => save((d) => ({
-    ...d,
-    messages: { ...d.messages, [channelId]: [...(d.messages[channelId] || []), { id: makeId("msg"), ...message, time: nowTime() }] },
-  }));
+  const addChannel = async (name, desc) => { await api.post("/channels", { name, desc }); await refresh(); };
+  const sendMessage = async (channelId, message) => {
+    await api.post(`/channels/${channelId}/messages`, { text: message.text });
+    await refresh();
+  };
 
   /* ================= ДОСТУПЫ (сейф) ================= */
   const vaultInitialized = !!data?.vault;
@@ -130,7 +71,8 @@ export function DataProvider({ children }) {
   const setupVault = async (passphrase) => {
     const salt = newVaultSalt();
     const canary = await makeVaultCanary(passphrase, salt);
-    save((d) => ({ ...d, vault: { salt, canary, credentials: [] } }));
+    await api.post("/vault/setup", { salt, canary });
+    await refresh();
   };
 
   const unlockVault = async (passphrase) => {
@@ -139,15 +81,9 @@ export function DataProvider({ children }) {
   };
 
   const addCredential = async (passphrase, { title, login, password, url, note, visibleTo }) => {
-    const salt = data.vault.salt;
-    const passEnc = await vaultEncrypt(passphrase, salt, password || "");
-    save((d) => ({
-      ...d,
-      vault: {
-        ...d.vault,
-        credentials: [{ id: makeId("cr"), title, login, url, note, visibleTo: visibleTo || [], passEnc }, ...d.vault.credentials],
-      },
-    }));
+    const passEnc = await vaultEncrypt(passphrase, data.vault.salt, password || "");
+    await api.post("/vault/credentials", { title, login, url, note, passEnc, visibleTo: visibleTo || [] });
+    await refresh();
   };
 
   const revealCredential = async (passphrase, credId) => {
@@ -156,16 +92,15 @@ export function DataProvider({ children }) {
     return vaultDecrypt(passphrase, data.vault.salt, cred.passEnc);
   };
 
-  const removeCredential = (credId) => save((d) => ({
-    ...d, vault: { ...d.vault, credentials: d.vault.credentials.filter((c) => c.id !== credId) },
-  }));
+  const removeCredential = async (credId) => { await api.del(`/vault/credentials/${credId}`); await refresh(); };
 
-  const updateCredentialVisibility = (credId, visibleTo) => save((d) => ({
-    ...d, vault: { ...d.vault, credentials: d.vault.credentials.map((c) => c.id === credId ? { ...c, visibleTo } : c) },
-  }));
+  const updateCredentialVisibility = async (credId, visibleTo) => {
+    await api.patch(`/vault/credentials/${credId}`, { visibleTo });
+    await refresh();
+  };
 
   const value = {
-    data, branchName,
+    data, branchName, refresh,
     addBranch, removeBranch, addFloor, removeFloor, addRoom, removeRoom,
     addWarehouseItem, adjustWarehouseItem, removeWarehouseItem,
     addCartridgeModel, removeCartridgeModel, cartridgeEvent, confirmReturn,
@@ -182,9 +117,4 @@ export function useData() {
   const ctx = useContext(DataCtx);
   if (!ctx) throw new Error("useData должен использоваться внутри DataProvider");
   return ctx;
-}
-
-function nowTime() {
-  const d = new Date();
-  return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
 }

@@ -53,12 +53,16 @@ export default function Equipment() {
     updateEquipment(id, { status: next });
   };
 
-  const add = () => {
+  const add = async () => {
     if (!nf.model.trim() || !nf.inv.trim() || !nf.branchId || !nf.floorId || !nf.roomId) return showToast("Заполните модель, инв. №, филиал, этаж и кабинет");
-    addEquipment({ ...nf, model: nf.model.trim(), inv: nf.inv.trim(), userName: nf.userName.trim() });
-    setNf(emptyForm());
-    setAdding(false);
-    showToast("Оборудование добавлено");
+    try {
+      await addEquipment({ ...nf, model: nf.model.trim(), inv: nf.inv.trim(), userName: nf.userName.trim() });
+      setNf(emptyForm());
+      setAdding(false);
+      showToast("Оборудование добавлено");
+    } catch (e) {
+      showToast(e.message);
+    }
   };
 
   return (

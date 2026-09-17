@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { useData } from "../context/DataContext";
 import { useAuth, ALL_MODULES, emptyPermissions } from "../context/AuthContext";
-import { exportOrgJson, importOrgJson } from "../lib/storage";
+import { exportOrgBackup } from "../lib/storage";
 import PageHeader from "../components/PageHeader";
 import { IcPlus, IcTrash, IcRefresh, IcBuilding, IcUsers } from "../components/Icons";
 
@@ -33,11 +33,15 @@ function BranchesTab() {
   const [nf, setNf] = useState({});
   const [nr, setNr] = useState({});
 
-  const addBr = () => {
+  const addBr = async () => {
     if (!nb.name.trim()) return showToast("Введите название филиала");
-    addBranch(nb.name, nb.city);
-    setNb({ name: "", city: "" });
-    showToast("Филиал добавлен");
+    try {
+      await addBranch(nb.name, nb.city);
+      setNb({ name: "", city: "" });
+      showToast("Филиал добавлен");
+    } catch (e) {
+      showToast(e.message);
+    }
   };
 
   return (
@@ -64,7 +68,7 @@ function BranchesTab() {
               <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
                 <input className="field field--box" style={{ maxWidth: 260 }} placeholder="Название этажа, напр. 2 этаж"
                   value={nf[b.id] || ""} onChange={(e) => setNf({ ...nf, [b.id]: e.target.value })} />
-                <button className="btn btn--sm" onClick={() => { if (!nf[b.id]?.trim()) return; addFloor(b.id, nf[b.id]); setNf({ ...nf, [b.id]: "" }); }}>+ Этаж</button>
+                <button className="btn btn--sm" onClick={async () => { if (!nf[b.id]?.trim()) return; await addFloor(b.id, nf[b.id]); setNf({ ...nf, [b.id]: "" }); }}>+ Этаж</button>
               </div>
               {b.floors.length === 0 && <div className="mono" style={{ fontSize: 11, color: "var(--dimmer)", marginBottom: 10 }}>Этажей пока нет</div>}
               {b.floors.map((f) => (
@@ -76,7 +80,7 @@ function BranchesTab() {
                   <div style={{ display: "flex", gap: 10, margin: "10px 0" }}>
                     <input className="field field--box" style={{ maxWidth: 220 }} placeholder="Кабинет, напр. Каб. 204"
                       value={nr[f.id] || ""} onChange={(e) => setNr({ ...nr, [f.id]: e.target.value })} />
-                    <button className="btn btn--sm" onClick={() => { if (!nr[f.id]?.trim()) return; addRoom(b.id, f.id, nr[f.id]); setNr({ ...nr, [f.id]: "" }); }}>+ Кабинет</button>
+                    <button className="btn btn--sm" onClick={async () => { if (!nr[f.id]?.trim()) return; await addRoom(b.id, f.id, nr[f.id]); setNr({ ...nr, [f.id]: "" }); }}>+ Кабинет</button>
                   </div>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     {f.rooms.map((r) => (
@@ -219,7 +223,7 @@ function EmployeesTab() {
   );
 }
 
-/* ================= ДАННЫЕ (экспорт/импорт) ================= */
+/* ================= ДАННЫЕ (резервная копия) ================= */
 function DataTab() {
   const { org } = useAuth();
   const { showToast } = useOutletContext();
@@ -228,20 +232,14 @@ function DataTab() {
       <div className="block__h"><span className="lbl">Резервная копия</span></div>
       <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
         <p className="mono" style={{ fontSize: 12, color: "var(--dim)", lineHeight: 1.7 }}>
-          Все данные организации хранятся локально в этом браузере. Экспортируйте резервную копию в JSON,
-          чтобы перенести её на другое устройство или сохранить на случай очистки браузера.
+          Все данные организации хранятся в базе данных проекта (Postgres). Здесь можно скачать
+          снимок текущего состояния в JSON — для аудита или переноса. Записи в разделе «Доступы»
+          остаются зашифрованными даже внутри экспортированного файла.
         </p>
-        <button className="btn btn--solid" onClick={() => { exportOrgJson(org.id); showToast("Файл экспортирован"); }}>Скачать резервную копию (.json)</button>
-        <label className="btn" style={{ textAlign: "center", cursor: "pointer" }}>
-          Импортировать резервную копию
-          <input type="file" accept="application/json" style={{ display: "none" }}
-            onChange={async (e) => {
-              const f = e.target.files?.[0];
-              if (!f) return;
-              try { await importOrgJson(f); showToast("Импортировано. Перезагрузите страницу и войдите заново."); }
-              catch { showToast("Не удалось прочитать файл"); }
-            }} />
-        </label>
+        <button className="btn btn--solid" onClick={async () => {
+          try { await exportOrgBackup(org.name); showToast("Резервная копия скачана"); }
+          catch (e) { showToast(e.message); }
+        }}>Скачать резервную копию (.json)</button>
       </div>
     </div>
   );

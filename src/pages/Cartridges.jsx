@@ -20,23 +20,31 @@ export default function Cartridges() {
   const [ev, setEv] = useState(null); // { cartId }
   const [evForm, setEvForm] = useState({ type: "in", branchId: branches[0]?.id || "", qty: 1, note: "" });
 
-  const addModel = () => {
+  const addModel = async () => {
     if (!nf.model.trim()) return showToast("Укажите модель картриджа");
-    addCartridgeModel({ model: nf.model.trim(), printer: nf.printer.trim(), min: parseInt(nf.min) || 0 });
-    setNf({ model: "", printer: "", min: 2 });
-    setAddingModel(false);
-    showToast("Модель картриджа добавлена");
+    try {
+      await addCartridgeModel({ model: nf.model.trim(), printer: nf.printer.trim(), min: parseInt(nf.min) || 0 });
+      setNf({ model: "", printer: "", min: 2 });
+      setAddingModel(false);
+      showToast("Модель картриджа добавлена");
+    } catch (e) {
+      showToast(e.message);
+    }
   };
 
   const openEvent = (cartId) => {
     setEv(cartId);
     setEvForm({ type: "in", branchId: branches[0]?.id || "", qty: 1, note: "" });
   };
-  const submitEvent = () => {
+  const submitEvent = async () => {
     if (!evForm.branchId || !evForm.qty) return showToast("Заполните филиал и количество");
-    cartridgeEvent(ev, { ...evForm, qty: parseInt(evForm.qty) || 0, author: user.name });
-    showToast(EVENT_LABEL[evForm.type] + " зафиксирован(о)");
-    setEv(null);
+    try {
+      await cartridgeEvent(ev, { ...evForm, qty: parseInt(evForm.qty) || 0, author: user.name });
+      showToast(EVENT_LABEL[evForm.type] + " зафиксирован(о)");
+      setEv(null);
+    } catch (e) {
+      showToast(e.message);
+    }
   };
 
   const lowCount = carts.reduce((s, c) => s + branches.filter((b) => (c.stock[b.id] || 0) < c.min).length, 0);

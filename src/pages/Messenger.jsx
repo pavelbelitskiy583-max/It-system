@@ -16,10 +16,15 @@ export default function Messenger() {
   const list = data.messages[active] || [];
   useEffect(() => { if (bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight; }, [active, list.length]);
 
-  const send = () => {
+  const send = async () => {
     if (!text.trim()) return;
-    sendMessage(active, { author: user.name, me: true, text: text.trim() });
+    const val = text.trim();
     setText("");
+    try {
+      await sendMessage(active, { author: user.name, me: true, text: val });
+    } catch (e) {
+      setText(val);
+    }
   };
 
   const ch = data.channels.find((c) => c.id === active);
@@ -38,7 +43,7 @@ export default function Messenger() {
             {addingCh && (
               <div style={{ padding: 12, borderBottom: "1px solid var(--line)", display: "flex", gap: 8 }}>
                 <input className="field field--box" style={{ fontSize: 12 }} placeholder="Название" value={chName} onChange={(e) => setChName(e.target.value)} />
-                <button className="btn btn--sm" onClick={() => { if (!chName.trim()) return; addChannel(chName, ""); setChName(""); setAddingCh(false); }}>ОК</button>
+                <button className="btn btn--sm" onClick={async () => { if (!chName.trim()) return; await addChannel(chName, ""); setChName(""); setAddingCh(false); }}>ОК</button>
               </div>
             )}
             {data.channels.map((c) => (

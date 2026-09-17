@@ -24,12 +24,16 @@ export default function Tasks() {
     updateTask(id, { status: order[i] });
   };
 
-  const add = () => {
+  const add = async () => {
     if (!nf.title.trim()) return showToast("Введите название задачи");
-    addTask({ title: nf.title.trim(), branchId: nf.branchId, prio: nf.prio, assignee: nf.assignee.trim() || user.name, date: new Date().toISOString(), createdBy: user.name });
-    setNf({ title: "", branchId: branches[0]?.id || "", prio: "md", assignee: user.name });
-    setAdding(false);
-    showToast("Задача создана");
+    try {
+      await addTask({ title: nf.title.trim(), branchId: nf.branchId, prio: nf.prio, assignee: nf.assignee.trim() || user.name, date: new Date().toISOString(), createdBy: user.name });
+      setNf({ title: "", branchId: branches[0]?.id || "", prio: "md", assignee: user.name });
+      setAdding(false);
+      showToast("Задача создана");
+    } catch (e) {
+      showToast(e.message);
+    }
   };
 
   return (
