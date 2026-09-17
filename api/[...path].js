@@ -2,9 +2,8 @@ import { sql, ensureSchema } from "./lib/db.js";
 import {
   ALL_MODULES, makeId, genPassword, hashPassword, verifyPassword,
   signSession, setSessionCookie, clearSessionCookie, getSessionFromReq,
-  fullPermissions, emptyPermissions, ApiError, genVerificationCode, hashCode,
+  fullPermissions, emptyPermissions, ApiError,
 } from "./lib/auth.js";
-import { sendVerificationEmail } from "./lib/email.js";
 
 export default async function handler(req, res) {
   try {
@@ -14,9 +13,7 @@ export default async function handler(req, res) {
     const method = req.method;
 
     /* ---------------- AUTH (без сессии) ---------------- */
-    if (a === "auth" && b === "register" && method === "POST") return await authRequestRegister(req, res);
-    if (a === "auth" && b === "verify-registration" && method === "POST") return await authVerifyRegistration(req, res);
-    if (a === "auth" && b === "resend-code" && method === "POST") return await authResendCode(req, res);
+    if (a === "auth" && b === "register" && method === "POST") return await authRegister(req, res);
     if (a === "auth" && b === "login" && method === "POST") return await authLogin(req, res);
     if (a === "auth" && b === "logout" && method === "POST") { clearSessionCookie(res); return res.status(200).json({ ok: true }); }
 
@@ -81,81 +78,26 @@ function shapeUser(u) {
 }
 
 /* ================= AUTH ================= */
-async function authRequestRegister(req, res) {
+async function authRegister(req, res) {
   const { orgName, adminName, login, email, password } = req.body || {};
-  if (!orgName?.trim() || !adminName?.trim() || !login?.trim() || !email?.trim() || !password) {
-    throw new ApiError(400, "Заполните все поля");
-  }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) throw new ApiError(400, "Некорректный адрес почты");
+  if (!orgName?.trim() || !adminName?.trim() || !login?.trim() || !password) throw new ApiError(400, "Заполните все поля");
   if (password.length < 6) throw new ApiError(400, "Пароль должен быть не короче 6 символов");
   const existing = await getUserByLogin(login);
   if (existing) throw new ApiError(409, "Такой логин уже занят");
 
-  const passHash = await hashPassword(password);
-  const payload = { orgName: orgName.trim(), adminName: adminName.trim(), login: login.trim(), passHash };
-  const normEmail = email.trim().toLowerCase();
-
-  await sql`DELETE FROM pending_verifications WHERE email = ${normEmail}`;
-  const code = genVerificationCode();
-  const id = makeId("pv");
-  await sql`INSERT INTO pending_verifications (id, email, code_hash, payload, expires_at)
-            VALUES (${id}, ${normEmail}, ${hashCode(code)}, ${JSON.stringify(payload)}::jsonb, now() + interval '15 minutes')`;
-
-  await sendVerificationEmail(normEmail, code);
-  return res.status(200).json({ pending: true, email: normEmail });
-}
-
-async function authVerifyRegistration(req, res) {
-  const { email, code } = req.body || {};
-  if (!email?.trim() || !code?.trim()) throw new ApiError(400, "Введите код подтверждения");
-  const normEmail = email.trim().toLowerCase();
-
-  const rows = await sql`SELECT * FROM pending_verifications WHERE email = ${normEmail} ORDER BY created_at DESC LIMIT 1`;
-  const pending = rows[0];
-  if (!pending) throw new ApiError(404, "Запрос на регистрацию не найден. Запросите код ещё раз.");
-  if (new Date(pending.expires_at) < new Date()) {
-    await sql`DELETE FROM pending_verifications WHERE id = ${pending.id}`;
-    throw new ApiError(410, "Код истёк. Запросите новый.");
-  }
-  if (pending.attempts >= 5) {
-    await sql`DELETE FROM pending_verifications WHERE id = ${pending.id}`;
-    throw new ApiError(429, "Слишком много попыток. Запросите новый код.");
-  }
-  if (pending.code_hash !== hashCode(code)) {
-    await sql`UPDATE pending_verifications SET attempts = attempts + 1 WHERE id = ${pending.id}`;
-    throw new ApiError(400, "Неверный код");
-  }
-
-  const { orgName, adminName, login, passHash } = pending.payload;
-  const existing = await getUserByLogin(login);
-  if (existing) { await sql`DELETE FROM pending_verifications WHERE id = ${pending.id}`; throw new ApiError(409, "Такой логин уже занят"); }
-
   const orgId = makeId("org");
   const userId = makeId("usr");
-  await sql`INSERT INTO organizations (id, name) VALUES (${orgId}, ${orgName})`;
+  const hash = await hashPassword(password);
+
+  await sql`INSERT INTO organizations (id, name) VALUES (${orgId}, ${orgName.trim()})`;
   await sql`INSERT INTO users (id, org_id, login, name, role, permissions, pass_hash, must_change_password, email)
-            VALUES (${userId}, ${orgId}, ${login}, ${adminName}, 'admin', ${JSON.stringify(fullPermissions())}::jsonb, ${passHash}, false, ${normEmail})`;
+            VALUES (${userId}, ${orgId}, ${login.trim()}, ${adminName.trim()}, 'admin', ${JSON.stringify(fullPermissions())}::jsonb, ${hash}, false, ${email?.trim().toLowerCase() || null})`;
   await sql`INSERT INTO channels (id, org_id, name, description) VALUES (${makeId("ch")}, ${orgId}, '# общий', 'Все сотрудники')`;
-  await sql`DELETE FROM pending_verifications WHERE id = ${pending.id}`;
 
   const token = signSession({ orgId, userId, role: "admin" });
   setSessionCookie(res, token);
   const user = await getUser(userId);
   return res.status(201).json({ user: shapeUser(user), org: await getOrg(orgId) });
-}
-
-async function authResendCode(req, res) {
-  const { email } = req.body || {};
-  if (!email?.trim()) throw new ApiError(400, "Укажите email");
-  const normEmail = email.trim().toLowerCase();
-  const rows = await sql`SELECT * FROM pending_verifications WHERE email = ${normEmail} ORDER BY created_at DESC LIMIT 1`;
-  const pending = rows[0];
-  if (!pending) throw new ApiError(404, "Запрос на регистрацию не найден. Начните регистрацию заново.");
-
-  const code = genVerificationCode();
-  await sql`UPDATE pending_verifications SET code_hash = ${hashCode(code)}, attempts = 0, expires_at = now() + interval '15 minutes' WHERE id = ${pending.id}`;
-  await sendVerificationEmail(normEmail, code);
-  return res.status(200).json({ ok: true });
 }
 
 async function authLogin(req, res) {
