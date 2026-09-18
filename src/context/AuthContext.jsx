@@ -42,7 +42,7 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     (async () => {
       try {
-        const { user: u, org: o } = await api.get("/auth/me");
+        const { user: u, org: o } = await api.get("/auth");
         setUser(u); setOrg(o);
         await refreshEmployees();
       } catch {
@@ -54,50 +54,50 @@ export function AuthProvider({ children }) {
   }, []); // eslint-disable-line
 
   const registerOrg = async ({ orgName, adminName, login, password }) => {
-    const { user: u, org: o } = await api.post("/auth/register", { orgName, adminName, login, password });
+    const { user: u, org: o } = await api.post("/auth", { action: "register", orgName, adminName, login, password });
     setUser(u); setOrg(o);
     await refreshEmployees();
     return o;
   };
 
   const login = async ({ login, password }) => {
-    const { user: u, org: o } = await api.post("/auth/login", { login, password });
+    const { user: u, org: o } = await api.post("/auth", { action: "login", login, password });
     setUser(u); setOrg(o);
     await refreshEmployees();
     return u;
   };
 
   const logout = async () => {
-    try { await api.post("/auth/logout"); } catch { /* ignore */ }
+    try { await api.post("/auth", { action: "logout" }); } catch { /* ignore */ }
     setUser(null); setOrg(null); setEmployees([]);
   };
 
   const createEmployee = async ({ name, login, branchId = null, permissions }) => {
-    const res = await api.post("/employees", { name, login, branchId, permissions: permissions || emptyPermissions() });
+    const res = await api.post("/employees", { action: "create", name, login, branchId, permissions: permissions || emptyPermissions() });
     await refreshEmployees();
     return res; // { user, password }
   };
 
   const updateEmployee = async (userId, patch) => {
-    await api.patch(`/employees/${userId}`, patch);
+    await api.post("/employees", { action: "update", id: userId, ...patch });
     await refreshEmployees();
   };
 
   const regeneratePassword = async (userId) => {
-    const { password } = await api.post(`/employees/${userId}/reset-password`);
+    const { password } = await api.post("/employees", { action: "reset-password", id: userId });
     await refreshEmployees();
     return password;
   };
 
   const removeEmployee = async (userId) => {
-    await api.del(`/employees/${userId}`);
+    await api.post("/employees", { action: "delete", id: userId });
     await refreshEmployees();
   };
 
   const listEmployees = () => employees;
 
   const changeOwnPassword = async (newPassword) => {
-    await api.post("/auth/change-password", { newPassword });
+    await api.post("/auth", { action: "change-password", newPassword });
     setUser((u) => ({ ...u, mustChangePassword: false }));
   };
 

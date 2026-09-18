@@ -24,44 +24,44 @@ export function DataProvider({ children }) {
   const branchName = (id) => data?.branches.find((b) => b.id === id)?.name || "—";
 
   /* ================= ФИЛИАЛЫ / ЭТАЖИ / КАБИНЕТЫ ================= */
-  const addBranch = async (name, city) => { await api.post("/branches", { name, city }); await refresh(); };
-  const removeBranch = async (branchId) => { await api.del(`/branches/${branchId}`); await refresh(); };
-  const addFloor = async (branchId, name) => { await api.post(`/branches/${branchId}/floors`, { name }); await refresh(); };
-  const removeFloor = async (branchId, floorId) => { await api.del(`/floors/${floorId}`); await refresh(); };
-  const addRoom = async (branchId, floorId, name) => { await api.post(`/floors/${floorId}/rooms`, { name }); await refresh(); };
-  const removeRoom = async (branchId, floorId, roomId) => { await api.del(`/rooms/${roomId}`); await refresh(); };
+  const addBranch = async (name, city) => { await api.post("/branches", { action: "create", name, city }); await refresh(); };
+  const removeBranch = async (branchId) => { await api.post("/branches", { action: "delete", id: branchId }); await refresh(); };
+  const addFloor = async (branchId, name) => { await api.post("/branches", { action: "add-floor", branchId, name }); await refresh(); };
+  const removeFloor = async (branchId, floorId) => { await api.post("/branches", { action: "delete-floor", floorId }); await refresh(); };
+  const addRoom = async (branchId, floorId, name) => { await api.post("/branches", { action: "add-room", floorId, name }); await refresh(); };
+  const removeRoom = async (branchId, floorId, roomId) => { await api.post("/branches", { action: "delete-room", roomId }); await refresh(); };
 
   /* ================= СКЛАД IT ================= */
-  const addWarehouseItem = async (item) => { await api.post("/warehouse", item); await refresh(); };
-  const adjustWarehouseItem = async (id, delta) => { await api.patch(`/warehouse/${id}`, { delta }); await refresh(); };
-  const removeWarehouseItem = async (id) => { await api.del(`/warehouse/${id}`); await refresh(); };
+  const addWarehouseItem = async (item) => { await api.post("/warehouse", { action: "create", ...item }); await refresh(); };
+  const adjustWarehouseItem = async (id, delta) => { await api.post("/warehouse", { action: "adjust", id, delta }); await refresh(); };
+  const removeWarehouseItem = async (id) => { await api.post("/warehouse", { action: "delete", id }); await refresh(); };
 
   /* ================= КАРТРИДЖИ + ИСТОРИЯ ================= */
-  const addCartridgeModel = async (item) => { await api.post("/cartridges", item); await refresh(); };
-  const removeCartridgeModel = async (id) => { await api.del(`/cartridges/${id}`); await refresh(); };
+  const addCartridgeModel = async (item) => { await api.post("/cartridges", { action: "create", ...item }); await refresh(); };
+  const removeCartridgeModel = async (id) => { await api.post("/cartridges", { action: "delete", id }); await refresh(); };
   const cartridgeEvent = async (cartId, { type, branchId, qty, note }) => {
-    await api.post(`/cartridges/${cartId}/events`, { type, branchId, qty, note });
+    await api.post("/cartridges", { action: "event", cartId, type, branchId, qty, note });
     await refresh();
   };
   const confirmReturn = async (cartId, eventId) => {
-    await api.post(`/cartridges/${cartId}/events/${eventId}/confirm`);
+    await api.post("/cartridges", { action: "confirm", cartId, eventId });
     await refresh();
   };
 
   /* ================= ОБОРУДОВАНИЕ ================= */
-  const addEquipment = async (item) => { await api.post("/equipment", item); await refresh(); };
-  const updateEquipment = async (id, patch) => { await api.patch(`/equipment/${id}`, patch); await refresh(); };
-  const removeEquipment = async (id) => { await api.del(`/equipment/${id}`); await refresh(); };
+  const addEquipment = async (item) => { await api.post("/equipment", { action: "create", ...item }); await refresh(); };
+  const updateEquipment = async (id, patch) => { await api.post("/equipment", { action: "update", id, ...patch }); await refresh(); };
+  const removeEquipment = async (id) => { await api.post("/equipment", { action: "delete", id }); await refresh(); };
 
   /* ================= ЗАДАЧИ ================= */
-  const addTask = async (task) => { await api.post("/tasks", task); await refresh(); };
-  const updateTask = async (id, patch) => { await api.patch(`/tasks/${id}`, patch); await refresh(); };
-  const removeTask = async (id) => { await api.del(`/tasks/${id}`); await refresh(); };
+  const addTask = async (task) => { await api.post("/tasks", { action: "create", ...task }); await refresh(); };
+  const updateTask = async (id, patch) => { await api.post("/tasks", { action: "update", id, ...patch }); await refresh(); };
+  const removeTask = async (id) => { await api.post("/tasks", { action: "delete", id }); await refresh(); };
 
   /* ================= МЕССЕНДЖЕР ================= */
-  const addChannel = async (name, desc) => { await api.post("/channels", { name, desc }); await refresh(); };
+  const addChannel = async (name, desc) => { await api.post("/channels", { action: "create-channel", name, desc }); await refresh(); };
   const sendMessage = async (channelId, message) => {
-    await api.post(`/channels/${channelId}/messages`, { text: message.text });
+    await api.post("/channels", { action: "send", channelId, text: message.text });
     await refresh();
   };
 
@@ -71,7 +71,7 @@ export function DataProvider({ children }) {
   const setupVault = async (passphrase) => {
     const salt = newVaultSalt();
     const canary = await makeVaultCanary(passphrase, salt);
-    await api.post("/vault/setup", { salt, canary });
+    await api.post("/vault", { action: "setup", salt, canary });
     await refresh();
   };
 
@@ -82,7 +82,7 @@ export function DataProvider({ children }) {
 
   const addCredential = async (passphrase, { title, login, password, url, note, visibleTo }) => {
     const passEnc = await vaultEncrypt(passphrase, data.vault.salt, password || "");
-    await api.post("/vault/credentials", { title, login, url, note, passEnc, visibleTo: visibleTo || [] });
+    await api.post("/vault", { action: "add-credential", title, login, url, note, passEnc, visibleTo: visibleTo || [] });
     await refresh();
   };
 
@@ -92,10 +92,10 @@ export function DataProvider({ children }) {
     return vaultDecrypt(passphrase, data.vault.salt, cred.passEnc);
   };
 
-  const removeCredential = async (credId) => { await api.del(`/vault/credentials/${credId}`); await refresh(); };
+  const removeCredential = async (credId) => { await api.post("/vault", { action: "delete-credential", id: credId }); await refresh(); };
 
   const updateCredentialVisibility = async (credId, visibleTo) => {
-    await api.patch(`/vault/credentials/${credId}`, { visibleTo });
+    await api.post("/vault", { action: "update-visibility", id: credId, visibleTo });
     await refresh();
   };
 

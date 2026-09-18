@@ -1,4 +1,6 @@
 // Тонкая обёртка над fetch: JSON-запросы к serverless API, с cookie-сессией.
+// Все эндпоинты — плоские файлы (без динамических сегментов пути); конкретное
+// действие передаётся полем "action" в теле POST-запроса.
 
 async function request(path, { method = "GET", body } = {}) {
   const res = await fetch(`/api${path}`, {
@@ -18,6 +20,4 @@ async function request(path, { method = "GET", body } = {}) {
 export const api = {
   get: (path) => request(path, { method: "GET" }),
   post: (path, body) => request(path, { method: "POST", body: body ?? {} }),
-  patch: (path, body) => request(path, { method: "PATCH", body: body ?? {} }),
-  del: (path) => request(path, { method: "DELETE" }),
 };
