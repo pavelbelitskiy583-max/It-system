@@ -19,8 +19,17 @@ export const sql = neon(connectionString);
 // Схема создаётся лениво при первом обращении к БД в рамках "тёплого" инстанса функции.
 let schemaReady = null;
 
+// Миграции недостающих колонок. Выполняются при КАЖДОМ вызове ensureSchema
+// (не кешируются), потому что ADD COLUMN IF NOT EXISTS мгновенный и идемпотентный,
+// а таблицы могли быть созданы раньше — до добавления этих колонок.
+async function runColumnMigrations() {
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT`;
+  await sql`ALTER TABLE warehouse_items ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now()`;
+  await sql`ALTER TABLE equipment ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now()`;
+}
+
 export async function ensureSchema() {
-  if (schemaReady) return schemaReady;
+  if (schemaReady) { await schemaReady; await runColumnMigrations(); return schemaReady; }
   schemaReady = (async () => {
     await sql`CREATE TABLE IF NOT EXISTS organizations (
       id TEXT PRIMARY KEY,
@@ -43,9 +52,6 @@ export async function ensureSchema() {
       must_change_password BOOLEAN NOT NULL DEFAULT true,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )`;
-    // Колонка добавлена позже исходной схемы — ADD COLUMN IF NOT EXISTS безопасен
-    // для уже существующей в проде базы данных (ничего не перезаписывает).
-    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT`;
 
     await sql`CREATE TABLE IF NOT EXISTS pending_verifications (
       id TEXT PRIMARY KEY,
@@ -169,13 +175,8 @@ export async function ensureSchema() {
       visible_to JSONB NOT NULL DEFAULT '[]'::jsonb,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )`;
-
-    // --- Миграции для уже существующих таблиц ---
-    // CREATE TABLE IF NOT EXISTS не добавляет новые колонки в таблицы, которые
-    // уже были созданы раньше. Поэтому недостающие колонки добавляем явно —
-    // ADD COLUMN IF NOT EXISTS безопасен (ничего не делает, если колонка есть).
-    await sql`ALTER TABLE warehouse_items ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()`;
-    await sql`ALTER TABLE equipment ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()`;
   })();
+  await schemaReady;
+  await runColumnMigrations();
   return schemaReady;
 }
