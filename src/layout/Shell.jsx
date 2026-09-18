@@ -18,7 +18,7 @@ const NAV = [
 
 export default function Shell() {
   const { org, user, logout, can, isAdmin, changeOwnPassword } = useAuth();
-  const { data, vaultInitialized } = useData();
+  const { data, error, loading, refresh, vaultInitialized } = useData();
   const navigate = useNavigate();
   const location = useLocation();
   const [toast, setToast] = useState("");
@@ -71,6 +71,20 @@ export default function Shell() {
   }
 
   if (!data) {
+    if (error) {
+      return (
+        <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
+          <div style={{ maxWidth: 420, textAlign: "center" }}>
+            <div className="lbl" style={{ color: "var(--crit)" }}>Ошибка загрузки данных</div>
+            <p style={{ marginTop: 16, fontSize: 14, color: "var(--dim)", lineHeight: 1.6, fontFamily: "var(--mono)", wordBreak: "break-word" }}>{error}</p>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 24 }}>
+              <button className="btn btn--solid" onClick={() => refresh()}>Повторить</button>
+              <button className="btn" onClick={handleLogout}>Выйти</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
     return <div style={{ minHeight: "100vh", display: "grid", placeItems: "center" }} className="mono lbl">Загрузка…</div>;
   }
 

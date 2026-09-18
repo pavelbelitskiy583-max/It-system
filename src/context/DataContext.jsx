@@ -8,17 +8,27 @@ const DataCtx = createContext(null);
 export function DataProvider({ children }) {
   const { org, user, ready } = useAuth();
   const [data, setData] = useState(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!org || !user) { setData(null); return; }
-    const state = await api.get("/state");
-    setData(state);
+    setLoading(true);
+    setError("");
+    try {
+      const state = await api.get("/state");
+      setData(state);
+    } catch (e) {
+      setError(e.message || "Не удалось загрузить данные");
+    } finally {
+      setLoading(false);
+    }
   }, [org?.id, user?.id]); // eslint-disable-line
 
   useEffect(() => {
     if (!ready) return;
     if (org && user) refresh();
-    else setData(null);
+    else { setData(null); setError(""); }
   }, [ready, org?.id, user?.id]); // eslint-disable-line
 
   const branchName = (id) => data?.branches.find((b) => b.id === id)?.name || "—";
@@ -100,7 +110,7 @@ export function DataProvider({ children }) {
   };
 
   const value = {
-    data, branchName, refresh,
+    data, error, loading, branchName, refresh,
     addBranch, removeBranch, addFloor, removeFloor, addRoom, removeRoom,
     addWarehouseItem, adjustWarehouseItem, removeWarehouseItem,
     addCartridgeModel, removeCartridgeModel, cartridgeEvent, confirmReturn,
