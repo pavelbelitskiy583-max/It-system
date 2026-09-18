@@ -55,13 +55,13 @@ export function setSessionCookie(res, token) {
   res.setHeader("Set-Cookie", serialize(COOKIE_NAME, token, {
     httpOnly: true,
     secure: true,
-    sameSite: "lax",
+    sameSite: "none",
     path: "/",
     maxAge: 60 * 60 * 24 * 30,
   }));
 }
 export function clearSessionCookie(res) {
-  res.setHeader("Set-Cookie", serialize(COOKIE_NAME, "", { httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: 0 }));
+  res.setHeader("Set-Cookie", serialize(COOKIE_NAME, "", { httpOnly: true, secure: true, sameSite: "none", path: "/", maxAge: 0 }));
 }
 export function getSessionFromReq(req) {
   const cookies = parse(req.headers.cookie || "");
