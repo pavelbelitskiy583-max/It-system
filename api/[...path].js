@@ -1,9 +1,9 @@
-import { sql, ensureSchema } from "./lib/db.js";
+import { sql, ensureSchema } from "./_lib/db.js";
 import {
   ALL_MODULES, makeId, genPassword, hashPassword, verifyPassword,
   signSession, setSessionCookie, clearSessionCookie, getSessionFromReq,
   fullPermissions, emptyPermissions, ApiError,
-} from "./lib/auth.js";
+} from "./_lib/auth.js";
 
 export default async function handler(req, res) {
   try {
