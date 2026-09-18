@@ -169,6 +169,13 @@ export async function ensureSchema() {
       visible_to JSONB NOT NULL DEFAULT '[]'::jsonb,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )`;
+
+    // --- Миграции для уже существующих таблиц ---
+    // CREATE TABLE IF NOT EXISTS не добавляет новые колонки в таблицы, которые
+    // уже были созданы раньше. Поэтому недостающие колонки добавляем явно —
+    // ADD COLUMN IF NOT EXISTS безопасен (ничего не делает, если колонка есть).
+    await sql`ALTER TABLE warehouse_items ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()`;
+    await sql`ALTER TABLE equipment ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()`;
   })();
   return schemaReady;
 }
