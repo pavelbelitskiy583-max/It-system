@@ -26,6 +26,10 @@ async function runColumnMigrations() {
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT`;
 }
 
+export function resetSchemaCache() {
+  schemaReady = null;
+}
+
 export async function ensureSchema() {
   if (schemaReady) { await schemaReady; await runColumnMigrations(); return schemaReady; }
   schemaReady = (async () => {
