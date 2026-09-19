@@ -9,8 +9,8 @@ async function getUserByLogin(login) {
   return rows[0] || null;
 }
 async function getOrg(id) {
-  const rows = await sql`SELECT id, name, created_at FROM organizations WHERE id = ${id}`;
-  return rows[0] ? { id: rows[0].id, name: rows[0].name, createdAt: rows[0].created_at } : null;
+  const rows = await sql`SELECT id, name FROM organizations WHERE id = ${id}`;
+  return rows[0] ? { id: rows[0].id, name: rows[0].name, createdAt: null } : null;
 }
 function shapeUser(u) {
   return {

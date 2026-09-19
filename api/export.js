@@ -5,9 +5,9 @@ export default withApi(async (req, res) => {
   requireAdmin(me);
   const orgId = me.org_id;
 
-  const orgRows = await sql`SELECT id, name, created_at FROM organizations WHERE id = ${orgId}`;
-  const org = orgRows[0] ? { id: orgRows[0].id, name: orgRows[0].name, createdAt: orgRows[0].created_at } : null;
-  const users = await sql`SELECT id, login, name, role, branch_id, permissions, must_change_password, created_at FROM users WHERE org_id = ${orgId}`;
+  const orgRows = await sql`SELECT id, name FROM organizations WHERE id = ${orgId}`;
+  const org = orgRows[0] ? { id: orgRows[0].id, name: orgRows[0].name, createdAt: null } : null;
+  const users = await sql`SELECT id, login, name, role, branch_id, permissions, must_change_password FROM users WHERE org_id = ${orgId}`;
   const branches = await sql`SELECT * FROM branches WHERE org_id = ${orgId}`;
   const warehouse = await sql`SELECT * FROM warehouse_items WHERE org_id = ${orgId}`;
   const cartridges = await sql`SELECT * FROM cartridges WHERE org_id = ${orgId}`;

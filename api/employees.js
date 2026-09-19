@@ -16,7 +16,7 @@ export default withApi(async (req, res) => {
   const me = await requireSession(req);
 
   if (req.method === "GET") {
-    const rows = await sql`SELECT * FROM users WHERE org_id = ${me.org_id} ORDER BY created_at`;
+    const rows = await sql`SELECT * FROM users WHERE org_id = ${me.org_id} ORDER BY id`;
     return res.status(200).json(rows.map(shapeUser));
   }
 

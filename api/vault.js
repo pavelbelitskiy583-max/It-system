@@ -9,7 +9,7 @@ export default withApi(async (req, res) => {
     const orgRows = await sql`SELECT vault_salt, vault_canary_iv, vault_canary_ct FROM organizations WHERE id = ${me.org_id}`;
     const orgRow = orgRows[0];
     if (!orgRow?.vault_salt) return res.status(200).json({ initialized: false });
-    const credRows = await sql`SELECT * FROM vault_credentials WHERE org_id = ${me.org_id} ORDER BY created_at DESC`;
+    const credRows = await sql`SELECT * FROM vault_credentials WHERE org_id = ${me.org_id} ORDER BY id DESC`;
     const visible = credRows.filter((c) => me.role === "admin" || (c.visible_to || []).includes(me.id));
     return res.status(200).json({
       initialized: true,

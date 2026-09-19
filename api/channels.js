@@ -11,10 +11,10 @@ export default withApi(async (req, res) => {
   requireModule(me, "messenger");
 
   if (req.method === "GET") {
-    const chRows = await sql`SELECT * FROM channels WHERE org_id = ${me.org_id} ORDER BY created_at`;
+    const chRows = await sql`SELECT * FROM channels WHERE org_id = ${me.org_id} ORDER BY id`;
     const channels = chRows.map((c) => ({ id: c.id, name: c.name, desc: c.description || "", branchId: c.branch_id }));
     const chIds = chRows.map((c) => c.id);
-    const msgRows = chIds.length ? await sql`SELECT * FROM messages WHERE channel_id = ANY(${chIds}) ORDER BY created_at ASC` : [];
+    const msgRows = chIds.length ? await sql`SELECT * FROM messages WHERE channel_id = ANY(${chIds}) ORDER BY id ASC` : [];
     const messages = {};
     for (const c of channels) messages[c.id] = [];
     for (const m of msgRows) messages[m.channel_id].push({ id: m.id, author: m.author_name, text: m.text, time: fmtTime(m.created_at) });

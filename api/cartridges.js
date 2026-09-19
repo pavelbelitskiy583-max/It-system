@@ -9,7 +9,7 @@ export default withApi(async (req, res) => {
     const cartRows = await sql`SELECT * FROM cartridges WHERE org_id = ${me.org_id} ORDER BY model`;
     const cartIds = cartRows.map((c) => c.id);
     const stockRows = cartIds.length ? await sql`SELECT * FROM cartridge_stock WHERE cartridge_id = ANY(${cartIds})` : [];
-    const evRows = cartIds.length ? await sql`SELECT * FROM cartridge_events WHERE cartridge_id = ANY(${cartIds}) ORDER BY created_at DESC` : [];
+    const evRows = cartIds.length ? await sql`SELECT * FROM cartridge_events WHERE cartridge_id = ANY(${cartIds}) ORDER BY id DESC` : [];
     const cartridges = cartRows.map((c) => ({
       id: c.id, model: c.model, printer: c.printer, min: c.min_qty,
       stock: Object.fromEntries(stockRows.filter((s) => s.cartridge_id === c.id).map((s) => [s.branch_id, s.qty])),
