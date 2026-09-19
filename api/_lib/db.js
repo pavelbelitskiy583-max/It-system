@@ -24,8 +24,6 @@ let schemaReady = null;
 // а таблицы могли быть созданы раньше — до добавления этих колонок.
 async function runColumnMigrations() {
   await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT`;
-  await sql`ALTER TABLE warehouse_items ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now()`;
-  await sql`ALTER TABLE equipment ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now()`;
 }
 
 export async function ensureSchema() {

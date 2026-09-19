@@ -6,7 +6,7 @@ export default withApi(async (req, res) => {
   requireModule(me, "equipment");
 
   if (req.method === "GET") {
-    const rows = await sql`SELECT * FROM equipment WHERE org_id = ${me.org_id} ORDER BY created_at DESC`;
+    const rows = await sql`SELECT * FROM equipment WHERE org_id = ${me.org_id} ORDER BY id DESC`;
     return res.status(200).json(rows.map((e) => ({
       id: e.id, type: e.type, model: e.model, inv: e.inv, branchId: e.branch_id,
       floorId: e.floor_id, roomId: e.room_id, userName: e.user_name, status: e.status,

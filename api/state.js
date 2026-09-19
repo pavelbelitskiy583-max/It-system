@@ -15,7 +15,7 @@ export default withApi(async (req, res) => {
     })),
   }));
 
-  const warehouseRows = await sql`SELECT * FROM warehouse_items WHERE org_id = ${orgId} ORDER BY created_at DESC`;
+  const warehouseRows = await sql`SELECT * FROM warehouse_items WHERE org_id = ${orgId} ORDER BY id DESC`;
   const warehouse = warehouseRows.map((w) => ({ id: w.id, name: w.name, cat: w.cat, qty: w.qty, unit: w.unit, branchId: w.branch_id }));
 
   const cartRows = await sql`SELECT * FROM cartridges WHERE org_id = ${orgId} ORDER BY model`;
@@ -31,7 +31,7 @@ export default withApi(async (req, res) => {
     })),
   }));
 
-  const eqRows = await sql`SELECT * FROM equipment WHERE org_id = ${orgId} ORDER BY created_at DESC`;
+  const eqRows = await sql`SELECT * FROM equipment WHERE org_id = ${orgId} ORDER BY id DESC`;
   const equipment = eqRows.map((e) => ({
     id: e.id, type: e.type, model: e.model, inv: e.inv, branchId: e.branch_id,
     floorId: e.floor_id, roomId: e.room_id, userName: e.user_name, status: e.status,
